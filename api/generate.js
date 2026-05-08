@@ -99,7 +99,7 @@ function buildPrompt(mode, character) {
 条件:
 - 4択クイズを1問だけ作る
 - 日本語
-- 実在情報のみ
+- 情報は"https://hololive.hololivepro.com/talents"、"https://seesaawiki.jp/hololivetv/"この2つのサイトのみから取得すること
 - 事実と違う内容を作らない
 - なるべくファンが楽しめる内容
 - 選択肢は必ず4つ
