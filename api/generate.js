@@ -133,12 +133,7 @@ async function callGemini({ prompt, schema }) {
             parts: [{ text: prompt }]
           }
         ],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 512,
-          responseMimeType: "application/json",
-          responseSchema: schema
-        }
+
       })
     }
   );
