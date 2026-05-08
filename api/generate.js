@@ -113,16 +113,13 @@ function buildPrompt(mode, character) {
 条件:
 - 4択クイズを1問だけ作る
 - 日本語
-- 情報は"https://hololive.hololivepro.com/talents"、"https://seesaawiki.jp/hololivetv/"この2つのサイトのみから取得すること
+- 情報は"https://hololive.hololivepro.com/talents"、"https://seesaawiki.jp/hololivetv/"この2つのサイト以外のものは絶対使わない
 - 事実と違う内容を作らない
 - なるべくファンが楽しめる内容
 - 選択肢は必ず4つ
 - 正解は choices の中の1つと完全一致させる
 - 必ずJSONのみを返す
 - Markdown、説明文、前置き、コードフェンスは禁止
-- question は1文で短め
-- choices はなるべく同じくらいの長さにする
-- answer は choices のどれかと完全一致させる
 
 出力形式:
 {
