@@ -39,24 +39,38 @@ module.exports = async (req, res) => {
 
     const prompt = buildPrompt(mode, character);
 
-    const result = await callGemini({
-      prompt,
-      schema,
-    });
+    const MAX_ATTEMPTS = 3;
+    let lastError = null;
 
-    const parsed = parseModelJson(result.text);
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const result = await callGemini({
+          prompt,
+          schema,
+        });
 
-    const validated = validateQuiz(parsed);
+        const parsed = parseModelJson(result.text);
+        const validated = validateQuiz(parsed);
 
-    if (!validated.ok) {
-      return res.status(500).json({
-        error: "Gemini の返答がJSON形式として不正です",
-        details: validated.reason,
-        raw: result.text
-      });
+        if (!validated.ok) {
+          throw new Error(validated.reason);
+        }
+
+        return res.status(200).json(validated.data);
+      } catch (error) {
+        lastError = error;
+        console.error(`Attempt ${attempt} failed:`, error);
+
+        if (attempt < MAX_ATTEMPTS) {
+          await sleep(500 * attempt);
+        }
+      }
     }
 
-    return res.status(200).json(validated.data);
+    return res.status(500).json({
+      error: "Gemini の返答がJSON形式として不正です",
+      message: lastError ? lastError.message : "Unknown error"
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
@@ -133,7 +147,6 @@ async function callGemini({ prompt, schema }) {
             parts: [{ text: prompt }]
           }
         ],
-
       })
     }
   );
@@ -146,16 +159,32 @@ async function callGemini({ prompt, schema }) {
     );
   }
 
-  const text =
-    data?.candidates?.[0]?.content?.parts?.map((p) => p.text || "").join("") ||
-    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "";
+  const text = extractGeminiText(data);
 
   if (!text) {
     throw new Error("Gemini から本文が返りませんでした");
   }
 
   return { text, raw: data };
+}
+
+function extractGeminiText(data) {
+  const candidate = data?.candidates?.[0];
+  if (!candidate) return "";
+
+  if (Array.isArray(candidate?.content?.parts)) {
+    return candidate.content.parts.map((p) => p.text || "").join("");
+  }
+
+  if (typeof candidate?.content?.text === "string") {
+    return candidate.content.text;
+  }
+
+  if (typeof candidate?.content === "string") {
+    return candidate.content;
+  }
+
+  return "";
 }
 
 function parseModelJson(text) {
@@ -229,4 +258,8 @@ function validateQuiz(value) {
       answer: answer.trim()
     }
   };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
