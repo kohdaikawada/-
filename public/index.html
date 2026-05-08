@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ホロライブ4択クイズ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="bg-orb orb1"></div>
+  <div class="bg-orb orb2"></div>
+  <div class="bg-orb orb3"></div>
+
+  <div class="app-shell">
+    <header class="topbar glass">
+      <div>
+        <div class="eyebrow">HOLOLIVE QUIZ ARENA</div>
+        <h1>ホロライブ 4択クイズ</h1>
+        <p class="sub">正解を連ねて、連続コンボを伸ばそう。</p>
+      </div>
+
+      <div class="top-stats">
+        <div class="stat">
+          <span>STREAK</span>
+          <strong id="streakTop">0</strong>
+        </div>
+        <div class="stat">
+          <span>MODE</span>
+          <strong id="modeText">初心者</strong>
+        </div>
+        <div class="stat">
+          <span>CHAR</span>
+          <strong id="charText">ぺこら</strong>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel glass left-panel">
+        <h2>DIFFICULTY</h2>
+        <div class="btn-grid">
+          <button class="mode-btn active" onclick="setMode('easy')">初心者</button>
+          <button class="mode-btn" onclick="setMode('medium')">中級</button>
+          <button class="mode-btn" onclick="setMode('hard')">上級</button>
+        </div>
+
+        <h2>CHARACTER</h2>
+        <div class="btn-grid">
+          <button class="char-btn active" onclick="setChar('pekora')">ぺこら</button>
+          <button class="char-btn" onclick="setChar('miko')">みこち</button>
+        </div>
+
+        <div class="meter-wrap">
+          <div class="meter-label">
+            <span>COMBO POWER</span>
+            <span id="comboPct">0%</span>
+          </div>
+          <div class="meter">
+            <div id="meterFill" class="meter-fill"></div>
+          </div>
+        </div>
+
+        <div class="hint-box">
+          <div class="hint-title">HINT</div>
+          <p>正解するとコンボが上昇。外すと 0 に戻る。</p>
+        </div>
+      </section>
+
+      <section class="panel glass game-panel">
+        <div class="game-hud">
+          <div id="status" class="status-pill">READY</div>
+          <div id="feed" class="feed">ロード中…</div>
+        </div>
+
+        <div class="question-card">
+          <div class="question-badge">QUESTION</div>
+          <h2 id="question" class="question">---</h2>
+        </div>
+
+        <div id="choices" class="choices">
+          <button id="choice0" class="choice-btn" onclick="answer(0)" disabled>
+            <span class="choice-key">A</span>
+            <span class="choice-text"></span>
+          </button>
+          <button id="choice1" class="choice-btn" onclick="answer(1)" disabled>
+            <span class="choice-key">B</span>
+            <span class="choice-text"></span>
+          </button>
+          <button id="choice2" class="choice-btn" onclick="answer(2)" disabled>
+            <span class="choice-key">C</span>
+            <span class="choice-text"></span>
+          </button>
+          <button id="choice3" class="choice-btn" onclick="answer(3)" disabled>
+            <span class="choice-key">D</span>
+            <span class="choice-text"></span>
+          </button>
+        </div>
+
+        <div class="footer-row">
+          <div class="mini-card">
+            <span>連続正解</span>
+            <strong id="streak">0</strong>
+          </div>
+          <div class="mini-card">
+            <span>ベスト</span>
+            <strong id="bestStreak">0</strong>
+          </div>
+          <button class="ghost-btn" onclick="resetStreak()">STREAK RESET</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

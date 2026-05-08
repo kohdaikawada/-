@@ -1,0 +1,14 @@
+{
+  "name": "quiz-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Hololive quiz app using Gemini API and Vercel Functions",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "vercel dev",
+    "build": "echo \"No build step required\""
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
