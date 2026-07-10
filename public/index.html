@@ -3,101 +3,122 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ホロライブ4択クイズ</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css" />
+  <meta name="description" content="出典に基づいてGeminiが生成する、兎田ぺこら・さくらみこの4択クイズです。" />
+  <meta name="theme-color" content="#effaff" />
+  <meta property="og:title" content="ホロライブ AI 4択クイズ" />
+  <meta property="og:description" content="公式プロフィールなどを参照して生成する4択クイズ。" />
+  <meta property="og:type" content="website" />
+  <title>ホロライブ AI 4択クイズ</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css?v=20260711-2" />
 </head>
 <body>
-  <div class="bg-orb orb1"></div>
-  <div class="bg-orb orb2"></div>
-  <div class="bg-orb orb3"></div>
+  <div class="bg-orb orb1" aria-hidden="true"></div>
+  <div class="bg-orb orb2" aria-hidden="true"></div>
+  <div class="bg-grid" aria-hidden="true"></div>
 
   <div class="app-shell">
     <header class="topbar glass">
       <div>
-        <div class="eyebrow">HOLOLIVE QUIZ ARENA</div>
-        <h1>ホロライブ 4択クイズ</h1>
-        <p class="sub">水色のステージで、推し知識をかわいくチェックしよう。</p>
+        <p class="eyebrow">SOURCE-GROUNDED AI QUIZ</p>
+        <h1>ホロライブ AI 4択クイズ</h1>
+        <p class="sub">水色のステージで、推し知識を楽しくチェックできます。</p>
       </div>
 
-      <div class="top-stats">
+      <dl class="top-stats" aria-label="プレイ状況">
         <div class="stat">
-          <span>STREAK</span>
-          <strong id="streakTop">0</strong>
+          <dt>STREAK</dt>
+          <dd id="streakTop">0</dd>
         </div>
         <div class="stat">
-          <span>MODE</span>
-          <strong id="modeText">初心者</strong>
+          <dt>ACCURACY</dt>
+          <dd id="accuracyTop">--</dd>
         </div>
         <div class="stat">
-          <span>CHAR</span>
-          <strong id="charText">ぺこら</strong>
+          <dt>MODE</dt>
+          <dd id="modeText">初心者</dd>
         </div>
-      </div>
+      </dl>
     </header>
 
     <main class="layout">
-      <section class="panel glass left-panel">
-        <h2>DIFFICULTY</h2>
-        <div class="btn-grid">
-          <button class="mode-btn active" onclick="setMode('easy')">初心者</button>
-          <button class="mode-btn" onclick="setMode('medium')">中級</button>
-          <button class="mode-btn" onclick="setMode('hard')">上級</button>
+      <aside class="panel glass controls-panel" aria-label="出題設定">
+        <div class="control-group">
+          <h2>難易度</h2>
+          <div class="segmented" id="modeControls">
+            <button class="option-btn active" type="button" data-mode="easy" aria-pressed="true">初心者</button>
+            <button class="option-btn" type="button" data-mode="medium" aria-pressed="false">中級</button>
+            <button class="option-btn" type="button" data-mode="hard" aria-pressed="false">上級</button>
+          </div>
         </div>
 
-        <h2>CHARACTER</h2>
-        <div class="btn-grid">
-          <button class="char-btn active" onclick="setChar('pekora')">ぺこら</button>
-          <button class="char-btn" onclick="setChar('miko')">みこち</button>
+        <div class="control-group">
+          <h2>キャラクター</h2>
+          <div class="segmented" id="characterControls">
+            <button class="option-btn active" type="button" data-character="pekora" aria-pressed="true">兎田ぺこら</button>
+            <button class="option-btn" type="button" data-character="miko" aria-pressed="false">さくらみこ</button>
+          </div>
         </div>
 
         <div class="meter-wrap">
           <div class="meter-label">
-            <span>COMBO POWER</span>
+            <span>COMBO</span>
             <span id="comboPct">0%</span>
           </div>
-          <div class="meter">
+          <div class="meter" role="progressbar" aria-label="コンボ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
             <div id="meterFill" class="meter-fill"></div>
           </div>
         </div>
 
-        <div class="hint-box">
-          <div class="hint-title">HINT</div>
-          <p>正解するとコンボが上昇。外すと 0 に戻る。</p>
+        <div class="info-box">
+          <strong>操作方法</strong>
+          <p>A〜Dまたは1〜4キーで回答できます。回答後はEnterキーで次へ進めます。</p>
         </div>
-      </section>
 
-      <section class="panel glass game-panel">
+        <button id="resetStatsButton" class="ghost-btn" type="button">記録をリセット</button>
+      </aside>
+
+      <section class="panel glass game-panel" aria-labelledby="question">
         <div class="game-hud">
-          <div id="status" class="status-pill">READY</div>
-          <div id="feed" class="feed">ロード中…</div>
+          <div id="status" class="status-pill loading" role="status" aria-live="polite">GENERATING</div>
+          <div id="feed" class="feed" aria-live="polite">最初の問題を生成しています…</div>
         </div>
 
         <div class="question-card">
-          <div class="question-badge">QUESTION</div>
-          <h2 id="question" class="question">---</h2>
+          <div class="question-meta">
+            <span>QUESTION</span>
+            <span id="questionCount">Q1</span>
+          </div>
+          <h2 id="question" class="question">読み込み中です…</h2>
         </div>
 
-        <div id="choices" class="choices">
-          <button id="choice0" class="choice-btn" onclick="answer(0)" disabled>
-            <span class="choice-key">A</span>
+        <div id="choices" class="choices" aria-label="選択肢">
+          <button class="choice-btn" type="button" data-index="0" disabled>
+            <span class="choice-key" aria-hidden="true">A</span>
             <span class="choice-text"></span>
           </button>
-          <button id="choice1" class="choice-btn" onclick="answer(1)" disabled>
-            <span class="choice-key">B</span>
+          <button class="choice-btn" type="button" data-index="1" disabled>
+            <span class="choice-key" aria-hidden="true">B</span>
             <span class="choice-text"></span>
           </button>
-          <button id="choice2" class="choice-btn" onclick="answer(2)" disabled>
-            <span class="choice-key">C</span>
+          <button class="choice-btn" type="button" data-index="2" disabled>
+            <span class="choice-key" aria-hidden="true">C</span>
             <span class="choice-text"></span>
           </button>
-          <button id="choice3" class="choice-btn" onclick="answer(3)" disabled>
-            <span class="choice-key">D</span>
+          <button class="choice-btn" type="button" data-index="3" disabled>
+            <span class="choice-key" aria-hidden="true">D</span>
             <span class="choice-text"></span>
           </button>
         </div>
+
+        <section id="resultPanel" class="result-panel" hidden aria-live="polite">
+          <h3 id="resultTitle">結果</h3>
+          <p id="explanation"></p>
+          <div id="sourceLinks" class="source-links"></div>
+        </section>
 
         <div class="footer-row">
           <div class="mini-card">
@@ -108,12 +129,21 @@
             <span>ベスト</span>
             <strong id="bestStreak">0</strong>
           </div>
-          <button class="ghost-btn" onclick="resetStreak()">STREAK RESET</button>
+          <div class="mini-card">
+            <span>正解数</span>
+            <strong><span id="correctCount">0</span>/<span id="answeredCount">0</span></strong>
+          </div>
+          <button id="primaryActionButton" class="primary-btn" type="button">再試行</button>
         </div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <p>本サイトは非公式のファンメイド作品であり、カバー株式会社およびhololive productionとは関係ありません。</p>
+      <p>生成AIの性質上、内容に誤りが含まれる可能性があります。回答後に表示される参照元もあわせて確認してください。</p>
+    </footer>
   </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=20260711-2" defer></script>
 </body>
 </html>
