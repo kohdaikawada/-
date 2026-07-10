@@ -18,19 +18,38 @@ test("normalizers fall back to safe defaults", () => {
   assert.equal(normalizeCharacter("invalid"), "pekora");
 });
 
-test("excluded questions are trimmed and limited", () => {
+test("excluded questions are trimmed and limited to the latest 20", () => {
   const value = normalizeExcludedQuestions([
-    "  one  ",
+    "  q01  ",
     123,
-    "two",
-    "three",
-    "four",
-    "five",
-    "six",
-    "seven"
+    "q02",
+    "q03",
+    "q04",
+    "q05",
+    "q06",
+    "q07",
+    "q08",
+    "q09",
+    "q10",
+    "q11",
+    "q12",
+    "q13",
+    "q14",
+    "q15",
+    "q16",
+    "q17",
+    "q18",
+    "q19",
+    "q20",
+    "q21"
   ]);
 
-  assert.deepEqual(value, ["two", "three", "four", "five", "six", "seven"]);
+  assert.deepEqual(
+    value,
+    Array.from({ length: 20 }, (_, index) =>
+      `q${String(index + 2).padStart(2, "0")}`
+    )
+  );
 });
 
 test("valid quiz is normalized and answer index is calculated", () => {
