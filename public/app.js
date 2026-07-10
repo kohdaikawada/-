@@ -140,7 +140,10 @@ async function loadQuiz() {
 
     state.questionNumber += 1;
     state.answerToken = data.answerToken;
-    state.recentQuestions = [...state.recentQuestions, data.question].slice(-6);
+    state.recentQuestions = [
+      ...state.recentQuestions,
+      data.question
+    ].slice(-20);
     elements.questionCount.textContent = `Q${state.questionNumber}`;
     elements.question.textContent = data.question;
     data.choices.forEach((choice, index) => {

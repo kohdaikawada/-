@@ -16,7 +16,7 @@ const { createAnswerToken } = require("./lib/token");
 
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
 const DEFAULT_MODEL = "gemini-3.1-flash-lite";
-const MAX_ATTEMPTS = 2;
+const MAX_ATTEMPTS = 4;
 const REQUEST_TIMEOUT_MS = 12_000;
 const ANSWER_TOKEN_TTL_MS = 10 * 60 * 1000;
 
@@ -61,6 +61,15 @@ module.exports = async function generateQuiz(req, res) {
 
         if (!validated.ok) {
           throw new Error(validated.reason);
+        }
+
+        if (
+          isDuplicateQuestion(
+            validated.data.question,
+            excludedQuestions
+          )
+        ) {
+          throw new Error("直近の問題と重複しています");
         }
 
         const citedSources = extractCitedSources(interaction, sources);
@@ -131,7 +140,7 @@ async function callGemini({ prompt, schema }) {
           schema
         },
         generation_config: {
-          temperature: 0.55
+          temperature: 0.9
         },
         store: false
       }),
@@ -168,6 +177,60 @@ function parseBody(body) {
 function setCommonHeaders(res, requestId) {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Request-Id", requestId);
+}
+
+
+function normalizeQuestion(text) {
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s　、。,.!?！？「」『』（）()・:：]/g, "");
+}
+
+function createBigrams(text) {
+  const result = new Set();
+
+  for (let i = 0; i < text.length - 1; i += 1) {
+    result.add(text.slice(i, i + 2));
+  }
+
+  return result;
+}
+
+function calculateSimilarity(a, b) {
+  const setA = createBigrams(a);
+  const setB = createBigrams(b);
+
+  if (setA.size === 0 || setB.size === 0) {
+    return a === b ? 1 : 0;
+  }
+
+  let intersection = 0;
+
+  for (const item of setA) {
+    if (setB.has(item)) {
+      intersection += 1;
+    }
+  }
+
+  const union = new Set([...setA, ...setB]).size;
+  return intersection / union;
+}
+
+function isDuplicateQuestion(question, excludedQuestions) {
+  const normalizedQuestion = normalizeQuestion(question);
+
+  return excludedQuestions.some((previousQuestion) => {
+    const normalizedPrevious = normalizeQuestion(previousQuestion);
+
+    return (
+      normalizedQuestion === normalizedPrevious ||
+      calculateSimilarity(
+        normalizedQuestion,
+        normalizedPrevious
+      ) >= 0.72
+    );
+  });
 }
 
 function sleep(ms) {

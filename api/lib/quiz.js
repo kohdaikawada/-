@@ -64,7 +64,7 @@ function normalizeExcludedQuestions(value) {
     .filter((item) => typeof item === "string")
     .map((item) => item.trim().slice(0, 180))
     .filter(Boolean)
-    .slice(-6);
+    .slice(-20);
 }
 
 function getSources(mode, character) {
