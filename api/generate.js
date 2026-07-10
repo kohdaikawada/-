@@ -1,260 +1,173 @@
-module.exports = async (req, res) => {
+"use strict";
+
+const crypto = require("node:crypto");
+const {
+  QUIZ_SCHEMA,
+  buildPrompt,
+  extractCitedSources,
+  extractInteractionText,
+  getSources,
+  normalizeCharacter,
+  normalizeExcludedQuestions,
+  normalizeMode,
+  validateQuiz
+} = require("./lib/quiz");
+const { createAnswerToken } = require("./lib/token");
+
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
+const DEFAULT_MODEL = "gemini-3.1-flash-lite";
+const MAX_ATTEMPTS = 2;
+const REQUEST_TIMEOUT_MS = 12_000;
+const ANSWER_TOKEN_TTL_MS = 10 * 60 * 1000;
+
+module.exports = async function generateQuiz(req, res) {
+  const requestId = crypto.randomUUID();
+  setCommonHeaders(res, requestId);
+
   if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method Not Allowed" });
+    res.setHeader("Allow", "POST");
+    return res.status(405).json({ error: "Method Not Allowed", requestId });
+  }
+
+  if (!process.env.GEMINI_API_KEY || !process.env.QUIZ_SIGNING_SECRET) {
+    console.error(`[${requestId}] Required environment variables are missing`);
+    return res.status(500).json({
+      error: "サーバー設定が完了していません",
+      requestId
+    });
   }
 
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {});
+    const body = parseBody(req.body);
     const mode = normalizeMode(body.mode);
     const character = normalizeCharacter(body.character);
+    const excludedQuestions = normalizeExcludedQuestions(body.excludeQuestions);
+    const sources = getSources(mode, character);
+    const prompt = buildPrompt({ mode, character, excludedQuestions });
 
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: "GEMINI_API_KEY が設定されていません" });
-    }
-
-    const schema = {
-      type: "object",
-      additionalProperties: false,
-      required: ["question", "choices", "answer"],
-      properties: {
-        question: {
-          type: "string",
-          description: "4択クイズの問題文"
-        },
-        choices: {
-          type: "array",
-          description: "必ず4つの選択肢",
-          minItems: 4,
-          maxItems: 4,
-          items: {
-            type: "string"
-          }
-        },
-        answer: {
-          type: "string",
-          description: "choicesの中の1つと完全一致する正解"
-        }
-      }
-    };
-
-    const prompt = buildPrompt(mode, character);
-
-    const MAX_ATTEMPTS = 3;
     let lastError = null;
 
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
-        const result = await callGemini({
-          prompt,
-          schema,
-        });
+        const interaction = await callGemini({ prompt, schema: QUIZ_SCHEMA });
+        const text = extractInteractionText(interaction);
 
-        const parsed = parseModelJson(result.text);
+        if (!text) {
+          throw new Error("Gemini returned no text output");
+        }
+
+        const parsed = JSON.parse(text);
         const validated = validateQuiz(parsed);
 
         if (!validated.ok) {
           throw new Error(validated.reason);
         }
 
-        return res.status(200).json(validated.data);
+        const citedSources = extractCitedSources(interaction, sources);
+        const finalSources = citedSources.length ? citedSources : sources;
+        const expiresAt = Date.now() + ANSWER_TOKEN_TTL_MS;
+        const answerToken = createAnswerToken(
+          {
+            answerIndex: validated.data.answerIndex,
+            explanation: validated.data.explanation,
+            sources: finalSources,
+            expiresAt
+          },
+          process.env.QUIZ_SIGNING_SECRET
+        );
+
+        return res.status(200).json({
+          question: validated.data.question,
+          choices: validated.data.choices,
+          answerToken,
+          expiresAt,
+          requestId
+        });
       } catch (error) {
         lastError = error;
-        console.error(`Attempt ${attempt} failed:`, error);
+        console.error(`[${requestId}] Attempt ${attempt} failed`, error);
 
         if (attempt < MAX_ATTEMPTS) {
-          await sleep(500 * attempt);
+          await sleep(250 * attempt);
         }
       }
     }
 
-    return res.status(500).json({
-      error: "Gemini の返答がJSON形式として不正です",
-      message: lastError ? lastError.message : "Unknown error"
+    console.error(`[${requestId}] Quiz generation failed`, lastError);
+    return res.status(502).json({
+      error: "クイズの生成に失敗しました。少し待ってから再試行してください",
+      requestId
     });
   } catch (error) {
-    console.error(error);
-    return res.status(500).json({
-      error: "Server error",
-      message: error.message
+    console.error(`[${requestId}] Request failed`, error);
+    return res.status(400).json({
+      error: "リクエストの形式が正しくありません",
+      requestId
     });
   }
 };
 
-function normalizeMode(mode) {
-  if (mode === "medium") return "medium";
-  if (mode === "hard") return "hard";
-  return "easy";
-}
-
-function normalizeCharacter(character) {
-  if (character === "miko") return "miko";
-  return "pekora";
-}
-
-function buildPrompt(mode, character) {
-  const modeText = {
-    easy: "初心者。かなり基本的な問題。",
-    medium: "中級。少し知識が必要な問題。",
-    hard: "上級。細かい知識が必要な問題。"
-  }[mode];
-
-  const characterText = {
-    pekora: "兎田ぺこら",
-    miko: "さくらみこ"
-  }[character];
-
-  return `
-あなたはクイズ作成AIです。
-
-テーマ: ホロライブ
-対象キャラ: ${characterText}
-難易度: ${modeText}
-
-条件:
-- 4択クイズを1問だけ作る
-- 日本語
-- 情報は"https://hololive.hololivepro.com/talents"、"https://seesaawiki.jp/hololivetv/"この2つのサイト以外のものは絶対使わない
-- 事実と違う内容を作らない
-- なるべくファンが楽しめる内容
-- 選択肢は必ず4つ
-- 正解は choices の中の1つと完全一致させる
-- 必ずJSONのみを返す
-- Markdown、説明文、前置き、コードフェンスは禁止
-
-出力形式:
-{
-  "question": "問題文",
-  "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"],
-  "answer": "正解の選択肢"
-}
-`.trim();
-}
-
 async function callGemini({ prompt, schema }) {
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=" +
-      encodeURIComponent(process.env.GEMINI_API_KEY),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }]
-          }
-        ],
-      })
-    }
-  );
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      `Gemini API error: ${JSON.stringify(data)}`
-    );
-  }
-
-  const text = extractGeminiText(data);
-
-  if (!text) {
-    throw new Error("Gemini から本文が返りませんでした");
-  }
-
-  return { text, raw: data };
-}
-
-function extractGeminiText(data) {
-  const candidate = data?.candidates?.[0];
-  if (!candidate) return "";
-
-  if (Array.isArray(candidate?.content?.parts)) {
-    return candidate.content.parts.map((p) => p.text || "").join("");
-  }
-
-  if (typeof candidate?.content?.text === "string") {
-    return candidate.content.text;
-  }
-
-  if (typeof candidate?.content === "string") {
-    return candidate.content;
-  }
-
-  return "";
-}
-
-function parseModelJson(text) {
-  if (typeof text !== "string") return null;
-
-  const trimmed = text.trim();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    return JSON.parse(trimmed);
-  } catch (_) {
-    const cleaned = trimmed
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```$/i, "")
-      .trim();
+    const response = await fetch(GEMINI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": process.env.GEMINI_API_KEY,
+        "Api-Revision": "2026-05-20"
+      },
+      body: JSON.stringify({
+        model: process.env.GEMINI_MODEL || DEFAULT_MODEL,
+        input: prompt,
+        system_instruction:
+          "あなたは出典に忠実なクイズ編集者です。与えられたURLの内容を確認し、曖昧さのない問題だけを作成してください。",
+        tools: [{ type: "url_context" }],
+        response_format: {
+          type: "text",
+          mime_type: "application/json",
+          schema
+        },
+        generation_config: {
+          temperature: 0.55
+        },
+        store: false
+      }),
+      signal: controller.signal
+    });
 
-    try {
-      return JSON.parse(cleaned);
-    } catch (_) {
-      const start = cleaned.indexOf("{");
-      const end = cleaned.lastIndexOf("}");
+    const data = await response.json().catch(() => ({}));
 
-      if (start === -1 || end === -1 || end <= start) return null;
-
-      try {
-        return JSON.parse(cleaned.slice(start, end + 1));
-      } catch (_) {
-        return null;
-      }
+    if (!response.ok) {
+      const apiMessage = data?.error?.message || `HTTP ${response.status}`;
+      throw new Error(`Gemini API error: ${apiMessage}`);
     }
+
+    return data;
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("Gemini API request timed out");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-function validateQuiz(value) {
-  if (!value || typeof value !== "object") {
-    return { ok: false, reason: "JSON object ではありません" };
+function parseBody(body) {
+  if (body == null || body === "") return {};
+  if (typeof body === "object" && !Buffer.isBuffer(body)) return body;
+  if (typeof body !== "string" || body.length > 10_000) {
+    throw new Error("Invalid request body");
   }
+  return JSON.parse(body);
+}
 
-  const { question, choices, answer } = value;
-
-  if (typeof question !== "string" || !question.trim()) {
-    return { ok: false, reason: "question が不正です" };
-  }
-
-  if (!Array.isArray(choices) || choices.length !== 4) {
-    return { ok: false, reason: "choices は4件必要です" };
-  }
-
-  if (!choices.every((c) => typeof c === "string" && c.trim())) {
-    return { ok: false, reason: "choices の要素が不正です" };
-  }
-
-  const uniqueChoices = new Set(choices.map((c) => c.trim()));
-  if (uniqueChoices.size !== 4) {
-    return { ok: false, reason: "choices に重複があります" };
-  }
-
-  if (typeof answer !== "string" || !answer.trim()) {
-    return { ok: false, reason: "answer が不正です" };
-  }
-
-  if (!choices.includes(answer)) {
-    return { ok: false, reason: "answer が choices のどれとも一致しません" };
-  }
-
-  return {
-    ok: true,
-    data: {
-      question: question.trim(),
-      choices: choices.map((c) => c.trim()),
-      answer: answer.trim()
-    }
-  };
+function setCommonHeaders(res, requestId) {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Request-Id", requestId);
 }
 
 function sleep(ms) {

@@ -1,14 +1,16 @@
 {
-  "name": "quiz-app",
-  "version": "1.0.0",
+  "name": "hololive-ai-quiz",
+  "version": "2.0.0",
   "private": true,
-  "description": "Hololive quiz app using Gemini API and Vercel Functions",
+  "description": "Source-grounded Hololive quiz app powered by Gemini and Vercel Functions",
   "scripts": {
     "dev": "vercel dev",
     "start": "vercel dev",
-    "build": "echo \"No build step required\""
+    "test": "node --test",
+    "check": "node --check api/generate.js && node --check api/answer.js && node --check api/lib/quiz.js && node --check api/lib/token.js && node --check public/app.js",
+    "build": "npm run check && npm test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }
